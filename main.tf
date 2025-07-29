@@ -87,6 +87,8 @@ resource "pilvio_vm" "nextcloud" {
           REDIS_PASSWORD=${random_password.redis_password.result}
           REDIS_MAX_MEMORY=${var.redis_max_memory}
           REDIS_PROFILE=${var.enable_redis ? "production" : "disabled"}
+          REDIS_HOST=${var.enable_redis ? "redis" : ""}
+          REDIS_HOST_PASSWORD=${var.enable_redis ? random_password.redis_password.result : ""}
           
           # Monitoring
           SLACK_WEBHOOK_URL=${var.slack_webhook_url}
@@ -185,8 +187,8 @@ resource "pilvio_vm" "nextcloud" {
       # Run setup script (this creates the configs directory with proper permissions)
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x setup.sh && ./setup.sh\"",
       
-      # Start Docker containers with production profile (includes Redis)
-      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose --profile production up -d\"",
+      # Start Docker containers with appropriate profile
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose --profile ${var.enable_redis ? "production" : "default"} up -d\"",
       
       # Run post-install script to apply custom configurations
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x scripts/post-install.sh && ./scripts/post-install.sh\"",
@@ -195,7 +197,7 @@ resource "pilvio_vm" "nextcloud" {
       "echo '0 2 * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && ./scripts/backup.sh' | crontab -",
       
       # Setup cron for pulling latest configuration changes
-      "echo '*/30 * * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && git pull && docker-compose --profile production up -d' | crontab -u ${var.vm_username} -"
+      "echo '*/30 * * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && git pull && docker-compose --profile ${var.enable_redis ? "production" : "default"} up -d' | crontab -u ${var.vm_username} -"
     ], var.enable_slack_alerts ? [
       # Enable health monitoring if Slack alerts are enabled
       "cp /home/${var.vm_username}/nextcloud/systemd/health-monitor.service /etc/systemd/system/",
