@@ -182,17 +182,20 @@ resource "pilvio_vm" "nextcloud" {
       "mv /home/${var.vm_username}/.env /home/${var.vm_username}/nextcloud/.env",
       "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/nextcloud/.env",
       
-      # Run setup script
+      # Run setup script (this creates the configs directory with proper permissions)
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x setup.sh && ./setup.sh\"",
-      
-      # Fix permissions for configs directory to be writable by container
-      "chown -R 33:33 /home/${var.vm_username}/nextcloud/configs",
       
       # Start Docker containers with production profile (includes Redis)
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose --profile production up -d\"",
       
-      # Wait for Nextcloud to be ready and configure Redis
+      # Wait for Nextcloud to be ready
       "sleep 60",
+      
+      # Fix permissions for configs directory after containers are running
+      "chown -R 33:33 /home/${var.vm_username}/nextcloud/configs",
+      "chmod 775 /home/${var.vm_username}/nextcloud/configs",
+      
+      # Configure Redis in Nextcloud
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set redis host --value=redis'\"",
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c \\\"php occ config:system:set redis password --value='\\$(grep REDIS_PASSWORD /home/${var.vm_username}/nextcloud/.env | cut -d= -f2)'\\\"\"",
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set redis port --value=6379'\"",
