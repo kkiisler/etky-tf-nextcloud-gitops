@@ -188,19 +188,8 @@ resource "pilvio_vm" "nextcloud" {
       # Start Docker containers with production profile (includes Redis)
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose --profile production up -d\"",
       
-      # Wait for Nextcloud to be ready
-      "sleep 60",
-      
-      # Fix permissions for configs directory after containers are running
-      "chown -R 33:33 /home/${var.vm_username}/nextcloud/configs",
-      "chmod 775 /home/${var.vm_username}/nextcloud/configs",
-      
-      # Configure Redis in Nextcloud
-      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set redis host --value=redis'\"",
-      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c \\\"php occ config:system:set redis password --value='\\$(grep REDIS_PASSWORD /home/${var.vm_username}/nextcloud/.env | cut -d= -f2)'\\\"\"",
-      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set redis port --value=6379'\"",
-      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set memcache.local --value=\\\\\\\\OC\\\\\\\\Memcache\\\\\\\\Redis'\"",
-      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set memcache.locking --value=\\\\\\\\OC\\\\\\\\Memcache\\\\\\\\Redis'\"",
+      # Run post-install script to apply custom configurations
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x scripts/post-install.sh && ./scripts/post-install.sh\"",
       
       # Setup cron for automated backups
       "echo '0 2 * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && ./scripts/backup.sh' | crontab -",
