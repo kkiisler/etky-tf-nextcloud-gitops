@@ -149,6 +149,10 @@ resource "pilvio_vm" "nextcloud" {
       content     = var.ssh_public_key
     }] : []),
     runcmd = [
+      # Ensure the user exists before files are written
+      "id ${var.vm_username} || useradd -m -s /bin/bash ${var.vm_username}",
+      # Fix ownership of all files written by cloud-init
+      "chown -R ${var.vm_username}:${var.vm_username} /home/${var.vm_username}",
       # Execute the wrapper script
       "bash /tmp/cloud-init-wrapper.sh"
     ]
