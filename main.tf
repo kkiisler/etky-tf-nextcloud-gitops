@@ -201,6 +201,9 @@ resource "pilvio_vm" "nextcloud" {
     ], var.enable_slack_alerts ? [
       # Enable health monitoring if Slack alerts are enabled
       "cp /home/${var.vm_username}/nextcloud/systemd/health-monitor.service /etc/systemd/system/",
+      # Create state directory for health monitor
+      "mkdir -p /var/lib/health-monitor",
+      "chown ${var.vm_username}:${var.vm_username} /var/lib/health-monitor",
       "systemctl daemon-reload",
       "systemctl enable health-monitor.service",
       "systemctl start health-monitor.service"
