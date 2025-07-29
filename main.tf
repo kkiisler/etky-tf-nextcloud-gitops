@@ -54,7 +54,7 @@ resource "pilvio_vm" "nextcloud" {
   location           = var.location
   network_uuid       = pilvio_vpc.main.uuid
 
-  cloud_init = jsonencode({
+  cloud_init = nonsensitive(jsonencode({
     write_files = concat([
       {
         path        = "/home/${var.vm_username}/.env"
@@ -77,7 +77,7 @@ resource "pilvio_vm" "nextcloud" {
           
           # S3 Object Storage
           S3_ENDPOINT=${var.s3_endpoint}
-          S3_BUCKET=${pilvio_bucket.nextcloud.name}
+          S3_BUCKET=${var.bucket_name}
           S3_ACCESS_KEY=${var.s3_access_key}
           S3_SECRET_KEY=${var.s3_secret_key}
           S3_REGION=us-east-1
@@ -93,28 +93,6 @@ resource "pilvio_vm" "nextcloud" {
           # Monitoring
           SLACK_WEBHOOK_URL=${var.slack_webhook_url}
           ENABLE_MONITORING=${var.enable_slack_alerts}
-        EOT
-      },
-      {
-        path        = "/tmp/cloud-init-wrapper.sh"
-        permissions = "0755"
-        content     = <<-EOT
-          #!/bin/bash
-          # Download and execute the cloud-init wrapper from the config repo
-          set -euo pipefail
-          
-          # Install required packages first
-          apt-get update
-          apt-get install -y curl git
-          
-          # Clone the config repo temporarily to get the wrapper script
-          git clone ${var.nextcloud_config_repo} /tmp/nextcloud-configs
-          
-          # Execute the wrapper script
-          bash /tmp/nextcloud-configs/scripts/cloud-init-wrapper.sh "${var.vm_username}" "${var.nextcloud_config_repo}"
-          
-          # Cleanup
-          rm -rf /tmp/nextcloud-configs
         EOT
       }
     ], var.git_deploy_key != "" ? [{
@@ -148,19 +126,93 @@ resource "pilvio_vm" "nextcloud" {
       permissions = "0600"
       content     = var.ssh_public_key
     }] : []),
-    runcmd = [
-      # Ensure the user exists before files are written
-      "id ${var.vm_username} || useradd -m -s /bin/bash ${var.vm_username}",
-      # Fix ownership of all files written by cloud-init
+    packages = [
+      "curl",
+      "git",
+      "ufw",
+      "fail2ban",
+      "unattended-upgrades",
+      "jq"
+    ],
+    runcmd = concat([
+      # Install Docker and Docker Compose
+      "curl -fsSL https://get.docker.com | sh",
+      "usermod -aG docker ${var.vm_username}",
+      "curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose",
+      "chmod +x /usr/local/bin/docker-compose",
+      
+      # Add user to sudo group and configure sudoers
+      "usermod -aG sudo ${var.vm_username}",
+      "echo '${var.vm_username} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${var.vm_username}",
+      "chmod 440 /etc/sudoers.d/${var.vm_username}",
+      
+      # Fix home directory ownership
       "chown -R ${var.vm_username}:${var.vm_username} /home/${var.vm_username}",
-      # Execute the wrapper script
-      "bash /tmp/cloud-init-wrapper.sh"
-    ]
-  })
-
-  lifecycle {
-    ignore_changes = [cloud_init]
-  }
+      "chmod 755 /home/${var.vm_username}",
+      
+      # Configure firewall
+      "ufw --force enable",
+      "ufw default deny incoming",
+      "ufw default allow outgoing",
+      "ufw allow ssh",
+      "ufw allow 80/tcp",
+      "ufw allow 443/tcp",
+      
+      # Configure fail2ban
+      "systemctl enable fail2ban",
+      "systemctl start fail2ban",
+      
+      # Configure automatic security updates
+      "echo 'Unattended-Upgrade::Automatic-Reboot \"false\";' >> /etc/apt/apt.conf.d/50unattended-upgrades",
+      "echo 'Unattended-Upgrade::Allowed-Origins:: \"$${distro_id}:$${distro_codename}-security\";' >> /etc/apt/apt.conf.d/50unattended-upgrades",
+    ], var.git_deploy_key != "" ? [
+      # Setup SSH deploy key permissions
+      "mkdir -p /home/${var.vm_username}/.ssh",
+      "chmod 700 /home/${var.vm_username}/.ssh",
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh",
+      "chmod 600 /home/${var.vm_username}/.ssh/git_deploy_key",
+      "chmod 600 /home/${var.vm_username}/.ssh/config",
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh/git_deploy_key",
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh/config",
+    ] : [], [
+      # Fix .env file ownership before moving it
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.env",
+      # Clone Nextcloud configuration repository
+      "su - ${var.vm_username} -c \"git clone ${var.nextcloud_config_repo} /home/${var.vm_username}/nextcloud\"",
+      
+      # Move .env file to the correct location
+      "mv /home/${var.vm_username}/.env /home/${var.vm_username}/nextcloud/.env",
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/nextcloud/.env",
+      
+      # Run setup script (this creates the configs directory with proper permissions)
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x setup.sh && ./setup.sh\"",
+      
+      # Start Docker containers with appropriate profile
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose --profile ${var.enable_redis ? "production" : "default"} up -d\"",
+      
+      # Run post-install script to apply custom configurations
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x scripts/post-install.sh && ./scripts/post-install.sh\"",
+      
+      # Setup cron for automated backups
+      "echo '0 2 * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && ./scripts/backup.sh' | crontab -",
+      
+      # Setup cron for pulling latest configuration changes
+      "echo '*/30 * * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && git pull && docker-compose --profile ${var.enable_redis ? "production" : "default"} up -d' | crontab -u ${var.vm_username} -"
+    ], var.enable_slack_alerts ? [
+      # Enable health monitoring if Slack alerts are enabled
+      "cp /home/${var.vm_username}/nextcloud/systemd/health-monitor.service /etc/systemd/system/",
+      "systemctl daemon-reload",
+      "systemctl enable health-monitor.service",
+      "systemctl start health-monitor.service"
+    ] : [], var.ssh_public_key != "" ? [
+      # Setup SSH key permissions
+      "mkdir -p /home/${var.vm_username}/.ssh",
+      "chmod 700 /home/${var.vm_username}/.ssh",
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh",
+      "chmod 600 /home/${var.vm_username}/.ssh/authorized_keys",
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh/authorized_keys"
+    ] : [])
+  }))
 }
 
 # Create an S3-compatible bucket for Nextcloud
