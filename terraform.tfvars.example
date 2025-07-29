@@ -1,0 +1,58 @@
+# Production configuration example
+# Copy this file to terraform.tfvars and fill in your values
+
+# Pilvio API Configuration
+apikey             = "your-pilvio-api-key"
+host               = "api.pilvio.com"
+location           = "tll01"  # Options: "tll01", "jhvi", "jhv02"
+billing_account_id = 12345    # Your Pilvio billing account ID
+
+# Domain Configuration (Required for Let's Encrypt)
+domain_name       = "nextcloud.yourdomain.com"
+letsencrypt_email = "admin@yourdomain.com"
+
+# VM Configuration (Optional - has defaults)
+# vpc_name      = "nextcloud-vpc"
+# vm_name       = "nextcloud"
+# vm_memory     = 4096  # Recommend 4GB+ for production
+# vm_vcpu       = 2     # Recommend 2+ cores for production
+# vm_disk_size  = 100   # Recommend 100GB+ for production
+# vm_username   = "adminuser"
+
+# SSH Key (Highly recommended for production)
+# ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host"
+
+# S3 Configuration (Required)
+s3_access_key = "your-pilvio-s3-access-key"
+s3_secret_key = "your-pilvio-s3-secret-key"
+# s3_endpoint = "s3.pilw.io"  # Default value
+
+# Application Configuration (Optional - has defaults)
+# nextcloud_admin_user = "admin"
+# bucket_name = "nextcloud-prod-bucket-unique-name"
+
+# Passwords (Optional - auto-generated if not provided)
+# vm_password              = ""  # Leave empty for auto-generation
+# db_password              = ""  # Leave empty for auto-generation
+# db_root_password         = ""  # Leave empty for auto-generation
+# nextcloud_admin_password = ""  # Leave empty for auto-generation
+
+# Slack Monitoring (Optional)
+# enable_slack_alerts = true
+# slack_webhook_url  = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+# Redis Cache (Optional - enabled by default)
+# enable_redis = true
+# redis_max_memory = "512mb"  # Options: "256mb", "512mb", "1gb", "2gb"
+
+# GitOps Configuration (Required for GitOps setup)
+# For public repositories:
+nextcloud_config_repo = "https://github.com/yourusername/nextcloud-configs.git"
+
+# For private repositories, use SSH URL and provide deploy key:
+# nextcloud_config_repo = "git@github.com:yourusername/nextcloud-configs.git"
+# git_deploy_key = <<-EOT
+# -----BEGIN OPENSSH PRIVATE KEY-----
+# your-deploy-key-content-here
+# -----END OPENSSH PRIVATE KEY-----
+# EOT
