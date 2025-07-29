@@ -185,6 +185,9 @@ resource "pilvio_vm" "nextcloud" {
       # Run setup script
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x setup.sh && ./setup.sh\"",
       
+      # Fix permissions for configs directory to be writable by container
+      "chown -R 33:33 /home/${var.vm_username}/nextcloud/configs",
+      
       # Start Docker containers with production profile (includes Redis)
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose --profile production up -d\"",
       
