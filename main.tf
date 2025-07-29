@@ -54,7 +54,7 @@ resource "pilvio_vm" "nextcloud" {
   location           = var.location
   network_uuid       = pilvio_vpc.main.uuid
 
-  cloud_init = jsonencode({
+  cloud_init = nonsensitive(jsonencode({
     write_files = concat([
       {
         path        = "/home/${var.vm_username}/.env"
@@ -212,7 +212,7 @@ resource "pilvio_vm" "nextcloud" {
       "chmod 600 /home/${var.vm_username}/.ssh/authorized_keys",
       "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh/authorized_keys"
     ] : [])
-  })
+  }))
 }
 
 # Create an S3-compatible bucket for Nextcloud
