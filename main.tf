@@ -166,6 +166,10 @@ resource "pilvio_vm" "nextcloud" {
       # Configure automatic security updates
       "echo 'Unattended-Upgrade::Automatic-Reboot \"false\";' >> /etc/apt/apt.conf.d/50unattended-upgrades",
       "echo 'Unattended-Upgrade::Allowed-Origins:: \"$${distro_id}:$${distro_codename}-security\";' >> /etc/apt/apt.conf.d/50unattended-upgrades",
+      
+      # Set timezone to Europe/Tallinn (UTC+3)
+      "timedatectl set-timezone Europe/Tallinn",
+      "echo 'Europe/Tallinn' > /etc/timezone",
     ], var.git_deploy_key != "" ? [
       # Setup SSH deploy key permissions
       "mkdir -p /home/${var.vm_username}/.ssh",
