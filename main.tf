@@ -2,36 +2,36 @@
 resource "random_password" "db_password" {
   length  = 32
   special = true
-  # Avoid $ in passwords as it causes issues in docker-compose.yml
-  override_special = "!@#%^&*()-_=+[]{}<>:?"
+  # Avoid shell metacharacters and characters that cause issues in docker-compose.yml
+  override_special = "!@#-_=+:?"
 }
 
 resource "random_password" "db_root_password" {
   length  = 32
   special = true
-  # Avoid $ in passwords as it causes issues in docker-compose.yml
-  override_special = "!@#%^&*()-_=+[]{}<>:?"
+  # Avoid shell metacharacters and characters that cause issues in docker-compose.yml
+  override_special = "!@#-_=+:?"
 }
 
 resource "random_password" "nextcloud_admin_password" {
   length  = 20
   special = true
-  # Avoid $ in passwords as it causes issues in docker-compose.yml
-  override_special = "!@#%^&*()-_=+[]{}<>:?"
+  # Avoid shell metacharacters and characters that cause issues in docker-compose.yml
+  override_special = "!@#-_=+:?"
 }
 
 resource "random_password" "vm_password" {
   length  = 20
   special = true
-  # Avoid $ in passwords as it causes issues in docker-compose.yml
-  override_special = "!@#%^&*()-_=+[]{}<>:?"
+  # Avoid shell metacharacters and characters that cause issues in docker-compose.yml
+  override_special = "!@#-_=+:?"
 }
 
 resource "random_password" "redis_password" {
   length  = 32
   special = true
-  # Avoid $ in passwords as it causes issues in docker-compose.yml
-  override_special = "!@#%^&*()-_=+[]{}<>:?"
+  # Avoid shell metacharacters and characters that cause issues in docker-compose.yml
+  override_special = "!@#-_=+:?"
 }
 
 # Create a VPC for the VM
@@ -185,14 +185,22 @@ resource "pilvio_vm" "nextcloud" {
       # Run setup script
       "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && chmod +x setup.sh && ./setup.sh\"",
       
-      # Start Docker containers
-      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose up -d\"",
+      # Start Docker containers with production profile (includes Redis)
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose --profile production up -d\"",
+      
+      # Wait for Nextcloud to be ready and configure Redis
+      "sleep 60",
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set redis host --value=redis'\"",
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c \\\"php occ config:system:set redis password --value='\\$(grep REDIS_PASSWORD /home/${var.vm_username}/nextcloud/.env | cut -d= -f2)'\\\"\"",
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set redis port --value=6379'\"",
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set memcache.local --value=\\\\\\\\OC\\\\\\\\Memcache\\\\\\\\Redis'\"",
+      "su - ${var.vm_username} -c \"cd /home/${var.vm_username}/nextcloud && docker-compose exec -T app su -s /bin/sh www-data -c 'php occ config:system:set memcache.locking --value=\\\\\\\\OC\\\\\\\\Memcache\\\\\\\\Redis'\"",
       
       # Setup cron for automated backups
       "echo '0 2 * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && ./scripts/backup.sh' | crontab -",
       
       # Setup cron for pulling latest configuration changes
-      "echo '*/30 * * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && git pull && docker-compose up -d' | crontab -u ${var.vm_username} -"
+      "echo '*/30 * * * * ${var.vm_username} cd /home/${var.vm_username}/nextcloud && git pull && docker-compose --profile production up -d' | crontab -u ${var.vm_username} -"
     ], var.enable_slack_alerts ? [
       # Enable health monitoring if Slack alerts are enabled
       "cp /home/${var.vm_username}/nextcloud/systemd/health-monitor.service /etc/systemd/system/",
