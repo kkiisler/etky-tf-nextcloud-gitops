@@ -30,8 +30,9 @@ resource "random_password" "vm_password" {
 resource "random_password" "redis_password" {
   length  = 32
   special = true
-  # Avoid shell metacharacters and characters that cause issues in docker-compose.yml
-  override_special = "!@#-_=+:?"
+  # Avoid characters that cause issues in URLs and docker-compose.yml
+  # Removed: # (URL fragment), + (URL encoding), ? (query string), : (port separator)
+  override_special = "!@-_="
 }
 
 # Create a VPC for the VM
