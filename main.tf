@@ -139,6 +139,15 @@ resource "pilvio_vm" "nextcloud" {
       "curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose",
       "chmod +x /usr/local/bin/docker-compose",
       
+      # Add user to sudo group and configure sudoers
+      "usermod -aG sudo ${var.vm_username}",
+      "echo '${var.vm_username} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${var.vm_username}",
+      "chmod 440 /etc/sudoers.d/${var.vm_username}",
+      
+      # Fix home directory ownership
+      "chown -R ${var.vm_username}:${var.vm_username} /home/${var.vm_username}",
+      "chmod 755 /home/${var.vm_username}",
+      
       # Configure firewall
       "ufw --force enable",
       "ufw default deny incoming",
@@ -164,6 +173,8 @@ resource "pilvio_vm" "nextcloud" {
       "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh/git_deploy_key",
       "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.ssh/config",
     ] : [], [
+      # Fix .env file ownership before moving it
+      "chown ${var.vm_username}:${var.vm_username} /home/${var.vm_username}/.env",
       # Clone Nextcloud configuration repository
       "su - ${var.vm_username} -c \"git clone ${var.nextcloud_config_repo} /home/${var.vm_username}/nextcloud\"",
       

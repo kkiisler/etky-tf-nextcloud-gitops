@@ -73,21 +73,9 @@ output "health_monitoring_instructions" {
     - Simple health check: https://${var.domain_name}/health
     - Detailed health API: SSH to server and run: /usr/local/bin/health-check-api.sh
     
-    ${var.enable_slack_alerts ? "Slack Alerts Configuration:
-    - Alerts are enabled and will be sent to your configured webhook
-    - Monitoring includes: Nextcloud HTTP, Docker containers, disk space, database, Redis cache, SSL certificate, memory usage
-    - Check interval: 60 seconds
-    - Alert threshold: 2 consecutive failures before alerting
-    - Rate limiting: Maximum 1 alert per hour per service
-    
-    To view monitoring logs:
-    - SSH to server and run: journalctl -u health-monitor -f
-    
-    To manually test Slack webhook:
-    - SSH to server and run: systemctl restart health-monitor" : "To enable Slack alerts:
-    1. Set enable_slack_alerts = true in your terraform.tfvars
-    2. Set slack_webhook_url = \"https://hooks.slack.com/services/YOUR/WEBHOOK/URL\"
-    3. Run terraform apply"}
+    ${var.enable_slack_alerts ? 
+    "Slack Alerts Configuration:\n    - Alerts are enabled and will be sent to your configured webhook\n    - Monitoring includes: Nextcloud HTTP, Docker containers, disk space, database, Redis cache, SSL certificate, memory usage\n    - Check interval: 60 seconds\n    - Alert threshold: 2 consecutive failures before alerting\n    - Rate limiting: Maximum 1 alert per hour per service\n    \n    To view monitoring logs:\n    - SSH to server and run: journalctl -u health-monitor -f\n    \n    To manually test Slack webhook:\n    - SSH to server and run: systemctl restart health-monitor" : 
+    "To enable Slack alerts:\n    1. Set enable_slack_alerts = true in your terraform.tfvars\n    2. Set slack_webhook_url = \"https://hooks.slack.com/services/YOUR/WEBHOOK/URL\"\n    3. Run terraform apply"}
   EOT
 }
 
