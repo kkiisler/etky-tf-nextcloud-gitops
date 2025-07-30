@@ -74,7 +74,7 @@ resource "pilvio_vm" "nextcloud" {
           # Nextcloud Admin
           NEXTCLOUD_ADMIN_USER=${var.nextcloud_admin_user}
           NEXTCLOUD_ADMIN_PASSWORD=${random_password.nextcloud_admin_password.result}
-          NEXTCLOUD_VERSION=30
+          NEXTCLOUD_VERSION=31
           
           # S3 Object Storage
           S3_ENDPOINT=${var.s3_endpoint}
